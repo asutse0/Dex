@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v11
+-- Traceless Dex Side Panel Extension v12
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -732,8 +732,8 @@ return function(Library)
 		hover(miniTab, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local topTools = make("Frame", {
-			Size = UDim2.fromOffset(214, 30),
-			Position = UDim2.new(0.5, -107, 0, 10),
+			Size = UDim2.fromOffset(62, 30),
+			Position = UDim2.new(0.5, -31, 0, 10),
 			BackgroundColor3 = theme("Panel", Color3.fromRGB(17, 17, 20)),
 			BorderSizePixel = 0,
 			Visible = false,
@@ -743,28 +743,34 @@ return function(Library)
 		corner(topTools, 12)
 		stroke(topTools, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.16)
 
-		local topTitle = make("TextLabel", {
-			Size = UDim2.fromOffset(32, 30),
-			Position = UDim2.fromOffset(6, 0),
-			BackgroundTransparency = 1,
-			Text = "D",
+		local dexToggleButton = make("TextButton", {
+			Size = UDim2.new(1, 0, 1, 0),
+			Position = UDim2.fromOffset(0, 0),
+			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+			BorderSizePixel = 0,
+			Text = "Dex",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
-			TextXAlignment = Enum.TextXAlignment.Left,
+			TextXAlignment = Enum.TextXAlignment.Center,
 			Font = Enum.Font.GothamBold,
 			TextSize = 11,
+			AutoButtonColor = false,
 			Parent = topTools
 		})
+
+		corner(dexToggleButton, 10)
+		hover(dexToggleButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local clickItemButton = make("TextButton", {
 			Size = UDim2.fromOffset(58, 22),
 			Position = UDim2.fromOffset(42, 4),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
-			Text = "Click Item",
+			Text = "Select",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 			Font = Enum.Font.GothamBold,
 			TextSize = 10,
 			AutoButtonColor = false,
+			Visible = false,
 			Parent = topTools
 		})
 
@@ -816,34 +822,72 @@ return function(Library)
 		local clickPickEnabled = false
 		local clickPickTarget = nil
 		local clickPickConnection = nil
+		local topToolsExpanded = false
 
-		local function setClickPickEnabled(enabled)
-			clickPickEnabled = enabled == true
+		local function setTopToolsExpanded(expanded)
+			topToolsExpanded = expanded == true
+			topTools.Visible = true
 
-			if clickPickEnabled then
-				topTools.Visible = true
-				clickItemButton.Text = "Picking..."
-				clickItemButton.BackgroundColor3 = theme("Accent", Color3.fromRGB(90, 90, 100))
-				confirmPickButton.Visible = true
-				cancelPickButton.Visible = true
+			if topToolsExpanded then
+				dexToggleButton.Size = UDim2.fromOffset(36, 22)
+				dexToggleButton.Position = UDim2.fromOffset(4, 4)
+				dexToggleButton.Text = "Dex"
+
+				clickItemButton.Visible = true
+				confirmPickButton.Visible = clickPickEnabled
+				cancelPickButton.Visible = clickPickEnabled
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 					Size = UDim2.fromOffset(216, 32),
 					Position = UDim2.new(0.5, -108, 0, 10)
 				}):Play()
 			else
-				clickItemButton.Text = "Click Item"
-				clickItemButton.BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48))
+				dexToggleButton.Size = UDim2.new(1, 0, 1, 0)
+				dexToggleButton.Position = UDim2.fromOffset(0, 0)
+				dexToggleButton.Text = "Dex"
+
+				clickItemButton.Visible = false
 				confirmPickButton.Visible = false
 				cancelPickButton.Visible = false
+
+				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Size = UDim2.fromOffset(62, 30),
+					Position = UDim2.new(0.5, -31, 0, 10)
+				}):Play()
+			end
+		end
+
+		local function setClickPickEnabled(enabled)
+			clickPickEnabled = enabled == true
+
+			if clickPickEnabled then
+				if not topToolsExpanded then
+					setTopToolsExpanded(true)
+				end
+
+				topTools.Visible = true
+				clickItemButton.Visible = true
+				clickItemButton.Text = "Picking"
+				clickItemButton.BackgroundColor3 = theme("Accent", Color3.fromRGB(90, 90, 100))
+				confirmPickButton.Visible = true
+				cancelPickButton.Visible = true
+			else
+				clickItemButton.Text = "Select"
+				clickItemButton.BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48))
+
+				if topToolsExpanded then
+					clickItemButton.Visible = true
+					confirmPickButton.Visible = false
+					cancelPickButton.Visible = false
+				else
+					clickItemButton.Visible = false
+					confirmPickButton.Visible = false
+					cancelPickButton.Visible = false
+				end
+
 				clickPickTarget = nil
 				pickHighlight.Adornee = nil
 				pickHighlight.Enabled = false
-
-				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(214, 30),
-					Position = UDim2.new(0.5, -107, 0, 10)
-				}):Play()
 			end
 		end
 
@@ -1412,6 +1456,7 @@ return function(Library)
 
 		function panel:MinimizePanel()
 			setClickPickEnabled(false)
+			setTopToolsExpanded(false)
 			topTools.Visible = true
 
 			if not panel.Open then
@@ -1446,6 +1491,7 @@ return function(Library)
 			panel.Open = true
 			main.Visible = true
 			topTools.Visible = true
+			setTopToolsExpanded(false)
 			miniTab.Visible = false
 			local _, width, height, newXOffset, newYOffset = getMobileSize()
 			main.Size = UDim2.fromOffset(width, height)
@@ -1462,6 +1508,7 @@ return function(Library)
 
 		function panel:ClosePanel()
 			setClickPickEnabled(false)
+			setTopToolsExpanded(false)
 			topTools.Visible = false
 			miniTab.Visible = false
 
@@ -1609,6 +1656,10 @@ return function(Library)
 			panel:ClosePanel()
 		end)
 
+		dexToggleButton.MouseButton1Click:Connect(function()
+			setTopToolsExpanded(not topToolsExpanded)
+		end)
+
 		clickItemButton.MouseButton1Click:Connect(function()
 			setClickPickEnabled(not clickPickEnabled)
 
@@ -1638,6 +1689,7 @@ return function(Library)
 				panel:FocusObject(target)
 			end)
 
+			setTopToolsExpanded(false)
 			notify("Dex", "Selected and focused in Dex panel.", 2)
 		end)
 
