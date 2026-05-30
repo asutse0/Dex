@@ -1,0 +1,1042 @@
+-- Traceless Dex Side Panel Extension
+-- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
+--
+-- Use:
+-- local InstallDex = loadstring(game:HttpGet(DEX_URL))()
+-- InstallDex(Library)
+--
+-- Adds:
+-- Library:CreateDexSidePanel({ Chat = Chat })
+-- Library:AddDexToggle(tab, { Chat = Chat })
+
+return function(Library)
+	--// Services
+	local Players = game:GetService("Players")
+	local Workspace = game:GetService("Workspace")
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local Lighting = game:GetService("Lighting")
+	local StarterGui = game:GetService("StarterGui")
+	local StarterPack = game:GetService("StarterPack")
+	local StarterPlayer = game:GetService("StarterPlayer")
+	local SoundService = game:GetService("SoundService")
+	local Teams = game:GetService("Teams")
+	local UserInputService = game:GetService("UserInputService")
+	local RunService = game:GetService("RunService")
+
+	local LocalPlayer = Players.LocalPlayer
+	local Mouse = LocalPlayer and LocalPlayer:GetMouse()
+
+	local Theme = Library.Theme or {}
+
+	local function theme(name, fallback)
+		return Theme[name] or fallback
+	end
+
+	local function make(className, props, children)
+		local obj = Instance.new(className)
+
+		for k, v in pairs(props or {}) do
+			obj[k] = v
+		end
+
+		for _, child in ipairs(children or {}) do
+			child.Parent = obj
+		end
+
+		return obj
+	end
+
+	local function corner(parent, radius)
+		return make("UICorner", {
+			CornerRadius = UDim.new(0, radius or 10),
+			Parent = parent
+		})
+	end
+
+	local function stroke(parent, color, thickness, transparency)
+		return make("UIStroke", {
+			Color = color or theme("StrokeSoft", Color3.fromRGB(42, 42, 48)),
+			Thickness = thickness or 1,
+			Transparency = transparency or 0.25,
+			Parent = parent
+		})
+	end
+
+	local function padding(parent, left, right, top, bottom)
+		return make("UIPadding", {
+			PaddingLeft = UDim.new(0, left or 0),
+			PaddingRight = UDim.new(0, right or 0),
+			PaddingTop = UDim.new(0, top or 0),
+			PaddingBottom = UDim.new(0, bottom or 0),
+			Parent = parent
+		})
+	end
+
+	local function hover(button, normal, over)
+		button.MouseEnter:Connect(function()
+			button.BackgroundColor3 = over
+		end)
+
+		button.MouseLeave:Connect(function()
+			button.BackgroundColor3 = normal
+		end)
+	end
+
+	local function trim(text)
+		return tostring(text or ""):match("^%s*(.-)%s*$")
+	end
+
+	local function safeClipboard(text)
+		text = tostring(text or "")
+
+		if type(setclipboard) == "function" then
+			setclipboard(text)
+			return true
+		end
+
+		if type(toclipboard) == "function" then
+			toclipboard(text)
+			return true
+		end
+
+		if type(set_clipboard) == "function" then
+			set_clipboard(text)
+			return true
+		end
+
+		return false
+	end
+
+	local function safeGet(instance, prop)
+		local ok, value = pcall(function()
+			return instance[prop]
+		end)
+
+		if ok then
+			return value
+		end
+
+		return nil
+	end
+
+	local function getServiceName(instance)
+		local services = {
+			[Workspace] = "Workspace",
+			[Players] = "Players",
+			[ReplicatedStorage] = "ReplicatedStorage",
+			[Lighting] = "Lighting",
+			[StarterGui] = "StarterGui",
+			[StarterPack] = "StarterPack",
+			[StarterPlayer] = "StarterPlayer",
+			[SoundService] = "SoundService",
+			[Teams] = "Teams"
+		}
+
+		return services[instance]
+	end
+
+	local function makeSafeLuaPath(instance)
+		if not instance then
+			return "nil"
+		end
+
+		local chain = {}
+		local current = instance
+
+		while current and current ~= game do
+			table.insert(chain, 1, current)
+			current = current.Parent
+		end
+
+		local root = chain[1]
+
+		if not root then
+			return "nil"
+		end
+
+		local rootService = getServiceName(root)
+		local path = rootService and ('game:GetService("%s")'):format(rootService) or "game"
+		local startIndex = rootService and 2 or 1
+
+		for i = startIndex, #chain do
+			local safeName = chain[i].Name:gsub("\\", "\\\\"):gsub('"', '\\"')
+			path ..= (':WaitForChild("%s")'):format(safeName)
+		end
+
+		return path
+	end
+
+	local function vector3Text(v)
+		return ("%.2f, %.2f, %.2f"):format(v.X, v.Y, v.Z)
+	end
+
+	local function color3Text(c)
+		return ("%d, %d, %d"):format(c.R * 255, c.G * 255, c.B * 255)
+	end
+
+	local function getRoots()
+		local roots = {}
+
+		if LocalPlayer and LocalPlayer.Character then
+			table.insert(roots, LocalPlayer.Character)
+		end
+
+		table.insert(roots, Workspace)
+		table.insert(roots, Players)
+		table.insert(roots, ReplicatedStorage)
+		table.insert(roots, Lighting)
+		table.insert(roots, StarterGui)
+		table.insert(roots, StarterPack)
+		table.insert(roots, StarterPlayer)
+		table.insert(roots, SoundService)
+		table.insert(roots, Teams)
+
+		return roots
+	end
+
+	local function sortChildren(children)
+		table.sort(children, function(a, b)
+			if a.ClassName == b.ClassName then
+				return a.Name:lower() < b.Name:lower()
+			end
+
+			return a.ClassName:lower() < b.ClassName:lower()
+		end)
+
+		return children
+	end
+
+	local function getScriptSource(instance)
+		if not instance or not (instance:IsA("LuaSourceContainer")) then
+			return nil, "Not a LuaSourceContainer."
+		end
+
+		local source = safeGet(instance, "Source")
+
+		if type(source) == "string" and source ~= "" then
+			return source, nil
+		end
+
+		return nil, "Source is not accessible in this environment."
+	end
+
+	local function getObjectContext(instance)
+		if not instance then
+			return "No object selected."
+		end
+
+		local lines = {
+			"Selected object:",
+			"Name: " .. instance.Name,
+			"ClassName: " .. instance.ClassName,
+			"FullName: " .. instance:GetFullName(),
+			"LuaPath: " .. makeSafeLuaPath(instance),
+			"Parent: " .. (instance.Parent and instance.Parent:GetFullName() or "nil"),
+			"Children: " .. tostring(#instance:GetChildren())
+		}
+
+		if instance:IsA("BasePart") then
+			table.insert(lines, "Position: " .. vector3Text(instance.Position))
+			table.insert(lines, "Size: " .. vector3Text(instance.Size))
+			table.insert(lines, "Anchored: " .. tostring(instance.Anchored))
+			table.insert(lines, "CanCollide: " .. tostring(instance.CanCollide))
+			table.insert(lines, "CanTouch: " .. tostring(instance.CanTouch))
+			table.insert(lines, "Transparency: " .. tostring(instance.Transparency))
+			table.insert(lines, "Material: " .. tostring(instance.Material))
+			table.insert(lines, "Color RGB: " .. color3Text(instance.Color))
+		end
+
+		if instance:IsA("Model") then
+			local pivot = instance:GetPivot()
+			table.insert(lines, "Pivot Position: " .. vector3Text(pivot.Position))
+		end
+
+		if instance:IsA("Humanoid") then
+			table.insert(lines, "Health: " .. tostring(instance.Health))
+			table.insert(lines, "MaxHealth: " .. tostring(instance.MaxHealth))
+			table.insert(lines, "WalkSpeed: " .. tostring(instance.WalkSpeed))
+			table.insert(lines, "JumpPower: " .. tostring(instance.JumpPower))
+			table.insert(lines, "RigType: " .. tostring(instance.RigType))
+		end
+
+		if instance:IsA("GuiObject") then
+			table.insert(lines, "Visible: " .. tostring(instance.Visible))
+			table.insert(lines, "Position: " .. tostring(instance.Position))
+			table.insert(lines, "Size: " .. tostring(instance.Size))
+			table.insert(lines, "BackgroundTransparency: " .. tostring(instance.BackgroundTransparency))
+		end
+
+		if instance:IsA("TextLabel") or instance:IsA("TextButton") or instance:IsA("TextBox") then
+			table.insert(lines, "Text: " .. tostring(instance.Text))
+			table.insert(lines, "TextSize: " .. tostring(instance.TextSize))
+			table.insert(lines, "Font: " .. tostring(instance.Font))
+		end
+
+		if instance:IsA("LuaSourceContainer") then
+			local source, sourceError = getScriptSource(instance)
+			table.insert(lines, "Script source readable: " .. tostring(source ~= nil))
+
+			if source then
+				table.insert(lines, "Source length: " .. tostring(#source) .. " characters")
+				table.insert(lines, "Source preview:")
+				table.insert(lines, string.sub(source, 1, 1000))
+			else
+				table.insert(lines, "Source note: " .. tostring(sourceError))
+			end
+		end
+
+		if instance:IsA("RemoteEvent") or instance:IsA("RemoteFunction") then
+			table.insert(lines, "Remote type: " .. instance.ClassName)
+		end
+
+		local children = sortChildren(instance:GetChildren())
+
+		if #children > 0 then
+			table.insert(lines, "")
+			table.insert(lines, "Children Preview:")
+
+			for i = 1, math.min(#children, 25) do
+				local child = children[i]
+				table.insert(lines, "- " .. child.Name .. " [" .. child.ClassName .. "]")
+			end
+
+			if #children > 25 then
+				table.insert(lines, "- ...and " .. tostring(#children - 25) .. " more")
+			end
+		end
+
+		return table.concat(lines, "\n")
+	end
+
+	local function getMobileSize()
+		local camera = Workspace.CurrentCamera
+		local viewport = camera and camera.ViewportSize or Vector2.new(900, 600)
+
+		local mobile = viewport.X <= 760
+		local width = mobile and math.max(310, viewport.X - 24) or 430
+		local height = mobile and math.max(360, viewport.Y - 120) or math.min(620, math.max(430, viewport.Y - 120))
+		local xOffset = mobile and -12 or -(width + 14)
+		local yOffset = -math.floor(height / 2)
+
+		return mobile, width, height, xOffset, yOffset
+	end
+
+	function Library:CreateDexSidePanel(config)
+		config = config or {}
+
+		local existing = self.DexPanel
+		if existing and existing.Gui then
+			return existing
+		end
+
+		local parent = self:GetParent()
+		local chat = config.Chat
+		local mobile, panelWidth, panelHeight, xOffset, yOffset = getMobileSize()
+
+		local panel = {
+			Open = false,
+			Selected = nil,
+			Rows = {},
+			Expanded = {},
+			Chat = chat
+		}
+
+		local gui = make("ScreenGui", {
+			Name = "TracelessDexSidePanel",
+			ResetOnSpawn = false,
+			IgnoreGuiInset = true,
+			ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+			Parent = parent
+		})
+
+		local main = make("Frame", {
+			Size = UDim2.fromOffset(panelWidth, panelHeight),
+			Position = UDim2.new(1, 18, 0.5, yOffset),
+			BackgroundColor3 = theme("Window", Color3.fromRGB(12, 12, 15)),
+			BorderSizePixel = 0,
+			Visible = false,
+			ClipsDescendants = true,
+			Parent = gui
+		})
+
+		corner(main, 14)
+		stroke(main, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.18)
+
+		local header = make("Frame", {
+			Size = UDim2.new(1, 0, 0, 46),
+			BackgroundColor3 = theme("Header", Color3.fromRGB(18, 18, 22)),
+			BorderSizePixel = 0,
+			Parent = main
+		})
+
+		corner(header, 14)
+
+		make("TextLabel", {
+			Size = UDim2.new(1, -92, 1, 0),
+			Position = UDim2.fromOffset(12, 0),
+			BackgroundTransparency = 1,
+			Text = "Traceless Dex",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Font = Enum.Font.GothamBold,
+			TextSize = 15,
+			Parent = header
+		})
+
+		local closeButton = make("TextButton", {
+			Size = UDim2.fromOffset(34, 30),
+			Position = UDim2.new(1, -42, 0, 8),
+			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+			BorderSizePixel = 0,
+			Text = "×",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			AutoButtonColor = false,
+			Parent = header
+		})
+
+		corner(closeButton, 9)
+		hover(closeButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+		local searchBox = make("TextBox", {
+			Size = UDim2.new(1, -22, 0, 34),
+			Position = UDim2.fromOffset(11, 54),
+			BackgroundColor3 = theme("Panel2", Color3.fromRGB(24, 24, 28)),
+			BorderSizePixel = 0,
+			PlaceholderText = "Search Workspace, scripts, remotes...",
+			PlaceholderColor3 = theme("Muted", Color3.fromRGB(155, 155, 165)),
+			Text = "",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Font = Enum.Font.Gotham,
+			TextSize = 11,
+			ClearTextOnFocus = false,
+			Parent = main
+		})
+
+		corner(searchBox, 9)
+		stroke(searchBox)
+		padding(searchBox, 8, 8, 0, 0)
+
+		local actionTop = make("Frame", {
+			Size = UDim2.new(1, -22, 0, 32),
+			Position = UDim2.fromOffset(11, 94),
+			BackgroundTransparency = 1,
+			Parent = main
+		})
+
+		local function makeTopButton(text, xScale, widthScale, callback)
+			local button = make("TextButton", {
+				Size = UDim2.new(widthScale, -5, 1, 0),
+				Position = UDim2.new(xScale, 0, 0, 0),
+				BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+				BorderSizePixel = 0,
+				Text = text,
+				TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+				Font = Enum.Font.GothamBold,
+				TextSize = 10,
+				AutoButtonColor = false,
+				Parent = actionTop
+			})
+
+			corner(button, 8)
+			hover(button, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+			button.MouseButton1Click:Connect(function()
+				if callback then
+					task.spawn(callback)
+				end
+			end)
+
+			return button
+		end
+
+		local tree = make("ScrollingFrame", {
+			Size = UDim2.new(1, -22, 0, math.floor((panelHeight - 186) * 0.55)),
+			Position = UDim2.fromOffset(11, 134),
+			BackgroundColor3 = theme("Background", Color3.fromRGB(8, 8, 10)),
+			BorderSizePixel = 0,
+			ScrollBarThickness = 4,
+			CanvasSize = UDim2.fromOffset(0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			Parent = main
+		})
+
+		corner(tree, 10)
+		stroke(tree)
+		padding(tree, 6, 6, 6, 6)
+
+		make("UIListLayout", {
+			Padding = UDim.new(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = tree
+		})
+
+		local inspectorY = 142 + math.floor((panelHeight - 186) * 0.55)
+		local inspector = make("ScrollingFrame", {
+			Size = UDim2.new(1, -22, 1, -(inspectorY + 47)),
+			Position = UDim2.fromOffset(11, inspectorY),
+			BackgroundColor3 = theme("Background", Color3.fromRGB(8, 8, 10)),
+			BorderSizePixel = 0,
+			ScrollBarThickness = 4,
+			CanvasSize = UDim2.fromOffset(0, 0),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			Parent = main
+		})
+
+		corner(inspector, 10)
+		stroke(inspector)
+		padding(inspector, 7, 7, 7, 7)
+
+		make("UIListLayout", {
+			Padding = UDim.new(0, 5),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = inspector
+		})
+
+		local bottom = make("Frame", {
+			Size = UDim2.new(1, -22, 0, 34),
+			Position = UDim2.new(0, 11, 1, -40),
+			BackgroundTransparency = 1,
+			Parent = main
+		})
+
+		local menu = make("Frame", {
+			Size = UDim2.fromOffset(170, 164),
+			Position = UDim2.fromOffset(20, 160),
+			BackgroundColor3 = theme("Panel2", Color3.fromRGB(24, 24, 28)),
+			BorderSizePixel = 0,
+			Visible = false,
+			ZIndex = 200,
+			Parent = main
+		})
+
+		corner(menu, 10)
+		stroke(menu, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.18)
+		padding(menu, 6, 6, 6, 6)
+
+		make("UIListLayout", {
+			Padding = UDim.new(0, 5),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Parent = menu
+		})
+
+		local function notify(title, msg, duration)
+			if Library.Notify then
+				Library:Notify(title, msg, duration or 2)
+			end
+		end
+
+		local function clearChildren(parentFrame)
+			for _, child in ipairs(parentFrame:GetChildren()) do
+				if child:IsA("GuiObject") then
+					child:Destroy()
+				end
+			end
+		end
+
+		local function addInspectorLine(text, bold)
+			local line = make("TextBox", {
+				Size = UDim2.new(1, 0, 0, bold and 25 or 22),
+				BackgroundColor3 = bold and theme("Panel2", Color3.fromRGB(24, 24, 28)) or theme("Panel", Color3.fromRGB(17, 17, 20)),
+				BorderSizePixel = 0,
+				Text = tostring(text or ""),
+				TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = false,
+				TextEditable = false,
+				ClearTextOnFocus = false,
+				Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham,
+				TextSize = bold and 11 or 10,
+				Parent = inspector
+			})
+
+			corner(line, 7)
+			padding(line, 7, 7, 0, 0)
+			return line
+		end
+
+		local function renderInspector(instance)
+			clearChildren(inspector)
+
+			if not instance then
+				addInspectorLine("No object selected.", true)
+				return
+			end
+
+			addInspectorLine(instance.Name .. " [" .. instance.ClassName .. "]", true)
+
+			for _, line in ipairs(string.split(getObjectContext(instance), "\n")) do
+				addInspectorLine(line, false)
+			end
+		end
+
+		local function pasteToChat(text)
+			text = tostring(text or "")
+
+			if chat and chat.AppendToInput then
+				chat:AppendToInput(text)
+				notify("Dex", "Inserted into AI chat.", 2)
+				return true
+			end
+
+			if safeClipboard(text) then
+				notify("Dex", "No chat linked. Copied instead.", 2)
+				return true
+			end
+
+			notify("Dex", "No chat linked.", 2)
+			return false
+		end
+
+		local function showContextMenu(instance, absPosition)
+			panel.Selected = instance
+			renderInspector(instance)
+
+			clearChildren(menu)
+
+			local function menuButton(text, callback)
+				local b = make("TextButton", {
+					Size = UDim2.new(1, 0, 0, 27),
+					BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+					BorderSizePixel = 0,
+					Text = text,
+					TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+					Font = Enum.Font.GothamBold,
+					TextSize = 10,
+					AutoButtonColor = false,
+					ZIndex = 205,
+					Parent = menu
+				})
+
+				corner(b, 7)
+				hover(b, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+				b.MouseButton1Click:Connect(function()
+					menu.Visible = false
+					if callback then
+						task.spawn(callback)
+					end
+				end)
+
+				return b
+			end
+
+			menuButton("Copy Path", function()
+				if safeClipboard(makeSafeLuaPath(instance)) then
+					notify("Dex", "Path copied.", 2)
+				else
+					notify("Dex", "Clipboard unavailable.", 2)
+				end
+			end)
+
+			menuButton("Paste Path in Chat", function()
+				pasteToChat('\n\nObject path:\n' .. makeSafeLuaPath(instance) .. '\n')
+			end)
+
+			menuButton("Paste Context in Chat", function()
+				pasteToChat("\n\n[Dex Object Context]\n" .. getObjectContext(instance) .. "\n")
+			end)
+
+			menuButton("Show Children", function()
+				panel:ShowChildren(instance)
+			end)
+
+			if instance:IsA("LuaSourceContainer") then
+				menuButton("Copy Source", function()
+					local source = getScriptSource(instance)
+
+					if source and safeClipboard(source) then
+						notify("Dex", "Source copied.", 2)
+					else
+						notify("Dex", "Source not accessible.", 2)
+					end
+				end)
+			end
+
+			menuButton("Close Menu", function() end)
+
+			local localX = math.clamp(absPosition.X - main.AbsolutePosition.X, 8, main.AbsoluteSize.X - 178)
+			local localY = math.clamp(absPosition.Y - main.AbsolutePosition.Y, 52, main.AbsoluteSize.Y - 172)
+
+			menu.Position = UDim2.fromOffset(localX, localY)
+			menu.Visible = true
+		end
+
+		local function addRow(instance, depth)
+			if not instance then
+				return
+			end
+
+			depth = depth or 0
+			local children = instance:GetChildren()
+			local hasChildren = #children > 0
+			local expanded = panel.Expanded[instance] == true
+			local prefix = hasChildren and (expanded and "▼ " or "▶ ") or "• "
+			local text = string.rep("  ", depth) .. prefix .. instance.Name .. "  [" .. instance.ClassName .. "]"
+
+			local row = make("TextButton", {
+				Size = UDim2.new(1, 0, 0, 28),
+				BackgroundColor3 = panel.Selected == instance and theme("Accent", Color3.fromRGB(90, 90, 100)) or theme("Panel2", Color3.fromRGB(24, 24, 28)),
+				BorderSizePixel = 0,
+				Text = text,
+				TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Font = Enum.Font.GothamBold,
+				TextSize = 10,
+				AutoButtonColor = false,
+				Parent = tree
+			})
+
+			corner(row, 7)
+			padding(row, 6, 6, 0, 0)
+			hover(row, row.BackgroundColor3, theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+			local holding = false
+			local holdStarted = 0
+
+			row.InputBegan:Connect(function(inputObject)
+				if inputObject.UserInputType == Enum.UserInputType.MouseButton2 then
+					showContextMenu(instance, inputObject.Position)
+					return
+				end
+
+				if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then
+					holding = true
+					holdStarted = os.clock()
+
+					task.delay(0.46, function()
+						if holding and os.clock() - holdStarted >= 0.44 then
+							holding = false
+							showContextMenu(instance, inputObject.Position)
+						end
+					end)
+				end
+			end)
+
+			row.InputEnded:Connect(function(inputObject)
+				if inputObject.UserInputType == Enum.UserInputType.MouseButton1 or inputObject.UserInputType == Enum.UserInputType.Touch then
+					holding = false
+				end
+			end)
+
+			row.MouseButton1Click:Connect(function()
+				menu.Visible = false
+				panel.Selected = instance
+				renderInspector(instance)
+
+				if hasChildren then
+					panel.Expanded[instance] = not panel.Expanded[instance]
+					panel:RenderTree()
+				else
+					panel:RenderTree()
+				end
+			end)
+
+			if expanded and hasChildren then
+				children = sortChildren(children)
+
+				for _, child in ipairs(children) do
+					addRow(child, depth + 1)
+				end
+			end
+		end
+
+		function panel:RenderTree()
+			clearChildren(tree)
+
+			local query = trim(searchBox.Text)
+
+			if query ~= "" then
+				local lower = query:lower()
+				local count = 0
+				local limit = tonumber(config.SearchLimit) or 250
+
+				for _, root in ipairs(getRoots()) do
+					local list = { root }
+
+					local ok, descendants = pcall(function()
+						return root:GetDescendants()
+					end)
+
+					if ok then
+						for _, item in ipairs(descendants) do
+							table.insert(list, item)
+						end
+					end
+
+					for _, item in ipairs(list) do
+						if count >= limit then
+							break
+						end
+
+						local haystack = (item.Name .. " " .. item.ClassName .. " " .. item:GetFullName()):lower()
+
+						if haystack:find(lower, 1, true) then
+							count += 1
+							addRow(item, 0)
+						end
+					end
+
+					if count >= limit then
+						break
+					end
+				end
+
+				if count == 0 then
+					make("TextLabel", {
+						Size = UDim2.new(1, 0, 0, 26),
+						BackgroundTransparency = 1,
+						Text = "No results.",
+						TextColor3 = theme("Muted", Color3.fromRGB(155, 155, 165)),
+						TextXAlignment = Enum.TextXAlignment.Left,
+						Font = Enum.Font.GothamBold,
+						TextSize = 10,
+						Parent = tree
+					})
+				end
+
+				return
+			end
+
+			for _, root in ipairs(getRoots()) do
+				addRow(root, 0)
+			end
+		end
+
+		function panel:ShowChildren(instance)
+			if not instance then
+				return
+			end
+
+			searchBox.Text = ""
+			panel.Expanded[instance] = true
+
+			local parentObject = instance.Parent
+			while parentObject and parentObject ~= game do
+				panel.Expanded[parentObject] = true
+				parentObject = parentObject.Parent
+			end
+
+			panel:RenderTree()
+			panel.Selected = instance
+			renderInspector(instance)
+		end
+
+		function panel:OpenPanel()
+			if panel.Open then
+				return
+			end
+
+			panel.Open = true
+			main.Visible = true
+			local _, width, height, newXOffset, newYOffset = getMobileSize()
+			main.Size = UDim2.fromOffset(width, height)
+			main.Position = UDim2.new(1, 18, 0.5, newYOffset)
+
+			local targetPosition = UDim2.new(1, newXOffset, 0.5, newYOffset)
+			local tween = game:GetService("TweenService"):Create(main, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = targetPosition
+			})
+
+			tween:Play()
+			panel:RenderTree()
+		end
+
+		function panel:ClosePanel()
+			if not panel.Open then
+				main.Visible = false
+				return
+			end
+
+			panel.Open = false
+			menu.Visible = false
+
+			local _, _, _, _, newYOffset = getMobileSize()
+			local tween = game:GetService("TweenService"):Create(main, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(1, 18, 0.5, newYOffset)
+			})
+
+			tween:Play()
+
+			task.delay(0.17, function()
+				if not panel.Open then
+					main.Visible = false
+				end
+			end)
+		end
+
+		function panel:Toggle()
+			if panel.Open then
+				panel:ClosePanel()
+			else
+				panel:OpenPanel()
+			end
+		end
+
+		function panel:SetChat(newChat)
+			panel.Chat = newChat
+			chat = newChat
+			return panel
+		end
+
+		function panel:GetSelected()
+			return panel.Selected
+		end
+
+		function panel:GetSelectedContext()
+			return panel.Selected and getObjectContext(panel.Selected) or ""
+		end
+
+		makeTopButton("Search", 0, 0.25, function()
+			panel:RenderTree()
+		end)
+
+		makeTopButton("Roots", 0.25, 0.25, function()
+			searchBox.Text = ""
+			panel.Expanded = {}
+			panel:RenderTree()
+		end)
+
+		makeTopButton("Copy", 0.5, 0.25, function()
+			if not panel.Selected then
+				notify("Dex", "Select an object first.", 2)
+				return
+			end
+
+			if safeClipboard(makeSafeLuaPath(panel.Selected)) then
+				notify("Dex", "Path copied.", 2)
+			else
+				notify("Dex", "Clipboard unavailable.", 2)
+			end
+		end)
+
+		makeTopButton("AI", 0.75, 0.25, function()
+			if not panel.Selected then
+				notify("Dex", "Select an object first.", 2)
+				return
+			end
+
+			pasteToChat("\n\n[Dex Object Context]\n" .. getObjectContext(panel.Selected) .. "\n")
+		end)
+
+		local bottomPaste = make("TextButton", {
+			Size = UDim2.new(0.5, -4, 1, 0),
+			Position = UDim2.fromOffset(0, 0),
+			BackgroundColor3 = theme("Accent", Color3.fromRGB(90, 90, 100)),
+			BorderSizePixel = 0,
+			Text = "Paste Path To AI",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			Font = Enum.Font.GothamBold,
+			TextSize = 10,
+			AutoButtonColor = false,
+			Parent = bottom
+		})
+
+		corner(bottomPaste, 8)
+		hover(bottomPaste, theme("Accent", Color3.fromRGB(90, 90, 100)), theme("AccentHover", Color3.fromRGB(115, 115, 128)))
+
+		bottomPaste.MouseButton1Click:Connect(function()
+			if not panel.Selected then
+				notify("Dex", "Select an object first.", 2)
+				return
+			end
+
+			pasteToChat("\n\nObject path:\n" .. makeSafeLuaPath(panel.Selected) .. "\n")
+		end)
+
+		local bottomContext = make("TextButton", {
+			Size = UDim2.new(0.5, -4, 1, 0),
+			Position = UDim2.new(0.5, 4, 0, 0),
+			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+			BorderSizePixel = 0,
+			Text = "Paste Full Context",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			Font = Enum.Font.GothamBold,
+			TextSize = 10,
+			AutoButtonColor = false,
+			Parent = bottom
+		})
+
+		corner(bottomContext, 8)
+		hover(bottomContext, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+		bottomContext.MouseButton1Click:Connect(function()
+			if not panel.Selected then
+				notify("Dex", "Select an object first.", 2)
+				return
+			end
+
+			pasteToChat("\n\n[Dex Object Context]\n" .. getObjectContext(panel.Selected) .. "\n")
+		end)
+
+		searchBox.FocusLost:Connect(function(enterPressed)
+			if enterPressed then
+				panel:RenderTree()
+			end
+		end)
+
+		closeButton.MouseButton1Click:Connect(function()
+			panel:ClosePanel()
+		end)
+
+		UserInputService.InputBegan:Connect(function(inputObject, gameProcessed)
+			if gameProcessed then
+				return
+			end
+
+			if inputObject.KeyCode == Enum.KeyCode.Escape and panel.Open then
+				panel:ClosePanel()
+			end
+		end)
+
+		RunService.RenderStepped:Connect(function()
+			if not panel.Open then
+				return
+			end
+
+			local _, width, height, newXOffset, newYOffset = getMobileSize()
+
+			if main.Size.X.Offset ~= width or main.Size.Y.Offset ~= height then
+				main.Size = UDim2.fromOffset(width, height)
+				main.Position = UDim2.new(1, newXOffset, 0.5, newYOffset)
+			end
+		end)
+
+		renderInspector(nil)
+		panel.Gui = gui
+		panel.Main = main
+		panel.Tree = tree
+		panel.Inspector = inspector
+		panel.Menu = menu
+
+		self.DexPanel = panel
+		return panel
+	end
+
+	function Library:AddDexToggle(tab, config)
+		config = config or {}
+
+		local panel = self:CreateDexSidePanel({
+			Chat = config.Chat,
+			SearchLimit = config.SearchLimit
+		})
+
+		local title = tab:AddLabel("Extra Tools")
+
+		local toggleButton = tab:AddButton("Toggle Dex Inspector", function()
+			panel:Toggle()
+		end)
+
+		local info = tab:AddLabel("Dex opens on the right. Tap an object to inspect. Hold/right-click a row for Copy Path / Paste to AI.")
+
+		return panel
+	end
+
+	Library.Extensions = Library.Extensions or {}
+	Library.Extensions.DexSidePanel = true
+
+	return Library
+end
