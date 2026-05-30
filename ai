@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v13
+-- Traceless Dex Side Panel Extension v1.13
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -10,6 +10,8 @@
 -- Library:AddDexToggle(tab, { Chat = Chat })
 
 return function(Library)
+	local DEX_VERSION = "Dex v1.13"
+
 	--// Services
 	local Players = game:GetService("Players")
 	local Workspace = game:GetService("Workspace")
@@ -692,7 +694,7 @@ return function(Library)
 			Size = UDim2.new(1, -130, 1, 0),
 			Position = UDim2.fromOffset(44, 0),
 			BackgroundTransparency = 1,
-			Text = "Traceless Dex",
+			Text = "Traceless Dex  •  v1.13",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamBold,
@@ -1056,7 +1058,7 @@ return function(Library)
 			clearChildren(inspector)
 
 			if not instance then
-				addInspectorLine("No object selected.", true)
+				addInspectorLine("No object selected.  •  " .. DEX_VERSION, true)
 				return
 			end
 
@@ -1812,7 +1814,10 @@ return function(Library)
 	end
 
 	Library.Extensions = Library.Extensions or {}
-	Library.Extensions.DexSidePanel = true
+	Library.Extensions.DexSidePanel = {
+		Version = DEX_VERSION,
+		Name = "Traceless Dex Side Panel"
+	}
 
 	return Library
 end
