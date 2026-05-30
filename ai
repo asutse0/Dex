@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v6
+-- Traceless Dex Side Panel Extension v7
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -585,10 +585,32 @@ return function(Library)
 		local viewport = camera and camera.ViewportSize or Vector2.new(900, 600)
 
 		local mobile = viewport.X <= 760
-		local width = mobile and math.max(310, viewport.X - 24) or 430
-		local height = mobile and math.max(360, viewport.Y - 120) or math.min(620, math.max(430, viewport.Y - 120))
-		local xOffset = mobile and -12 or -(width + 14)
-		local yOffset = -math.floor(height / 2)
+
+		-- Keep Dex slimmer so the top Dex Tools bar does not overlap the header/minimize arrow.
+		-- Desktop: right-side compact panel.
+		-- Mobile: still readable, but not full-width.
+		local width
+
+		if mobile then
+			width = math.floor(math.clamp(viewport.X * 0.78, 286, math.max(286, viewport.X - 28)))
+		else
+			width = math.floor(math.clamp(viewport.X * 0.34, 320, 360))
+		end
+
+		local height
+
+		if mobile then
+			height = math.floor(math.clamp(viewport.Y - 112, 330, math.max(330, viewport.Y - 72)))
+		else
+			height = math.floor(math.clamp(viewport.Y - 112, 410, 560))
+		end
+
+		local xOffset = -(width + (mobile and 12 or 14))
+
+		-- Put the panel lower instead of vertically centered.
+		-- This keeps the top Dex Tools bar from covering the minimize arrow/header.
+		local topMargin = mobile and 54 or 56
+		local yOffset = topMargin - math.floor(viewport.Y / 2)
 
 		return mobile, width, height, xOffset, yOffset
 	end
@@ -709,8 +731,8 @@ return function(Library)
 		hover(miniTab, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local topTools = make("Frame", {
-			Size = UDim2.fromOffset(268, 34),
-			Position = UDim2.new(0.5, -134, 0, 10),
+			Size = UDim2.fromOffset(248, 32),
+			Position = UDim2.new(0.5, -124, 0, 10),
 			BackgroundColor3 = theme("Panel", Color3.fromRGB(17, 17, 20)),
 			BorderSizePixel = 0,
 			Visible = false,
@@ -721,7 +743,7 @@ return function(Library)
 		stroke(topTools, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.16)
 
 		local topTitle = make("TextLabel", {
-			Size = UDim2.fromOffset(58, 34),
+			Size = UDim2.fromOffset(48, 32),
 			Position = UDim2.fromOffset(8, 0),
 			BackgroundTransparency = 1,
 			Text = "Dex",
@@ -733,8 +755,8 @@ return function(Library)
 		})
 
 		local clickItemButton = make("TextButton", {
-			Size = UDim2.fromOffset(70, 24),
-			Position = UDim2.fromOffset(70, 5),
+			Size = UDim2.fromOffset(64, 23),
+			Position = UDim2.fromOffset(58, 4),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Click Item",
@@ -749,8 +771,8 @@ return function(Library)
 		hover(clickItemButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local confirmPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(62, 24),
-			Position = UDim2.fromOffset(146, 5),
+			Size = UDim2.fromOffset(58, 23),
+			Position = UDim2.fromOffset(128, 4),
 			BackgroundColor3 = theme("Success", Color3.fromRGB(50, 88, 62)),
 			BorderSizePixel = 0,
 			Text = "Confirm",
@@ -765,8 +787,8 @@ return function(Library)
 		corner(confirmPickButton, 8)
 
 		local cancelPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(52, 24),
-			Position = UDim2.fromOffset(214, 5),
+			Size = UDim2.fromOffset(50, 23),
+			Position = UDim2.fromOffset(190, 4),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Cancel",
@@ -805,8 +827,8 @@ return function(Library)
 				cancelPickButton.Visible = true
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(286, 36),
-					Position = UDim2.new(0.5, -143, 0, 10)
+					Size = UDim2.fromOffset(252, 34),
+					Position = UDim2.new(0.5, -126, 0, 10)
 				}):Play()
 			else
 				clickItemButton.Text = "Click Item"
@@ -818,8 +840,8 @@ return function(Library)
 				pickHighlight.Enabled = false
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(268, 34),
-					Position = UDim2.new(0.5, -134, 0, 10)
+					Size = UDim2.fromOffset(248, 32),
+					Position = UDim2.new(0.5, -124, 0, 10)
 				}):Play()
 			end
 		end
