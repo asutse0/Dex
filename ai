@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v10
+-- Traceless Dex Side Panel Extension v11
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -605,8 +605,9 @@ return function(Library)
 			height = math.floor(math.clamp(viewport.Y - 112, 410, 560))
 		end
 
-		-- Keep Dex pushed all the way to the right edge.
-		local xOffset = -(width + (mobile and 4 or 6))
+		-- Keep Dex fully flush to the right edge.
+		-- Right edge of the panel = right edge of the screen.
+		local xOffset = -width
 
 		-- Keep the slimmer Dex panel at the right-center like the original position.
 		-- Width stays compact, only the vertical position is restored to center.
@@ -731,8 +732,8 @@ return function(Library)
 		hover(miniTab, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local topTools = make("Frame", {
-			Size = UDim2.fromOffset(248, 32),
-			Position = UDim2.new(0.5, -124, 0, 10),
+			Size = UDim2.fromOffset(214, 30),
+			Position = UDim2.new(0.5, -107, 0, 10),
 			BackgroundColor3 = theme("Panel", Color3.fromRGB(17, 17, 20)),
 			BorderSizePixel = 0,
 			Visible = false,
@@ -743,10 +744,10 @@ return function(Library)
 		stroke(topTools, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.16)
 
 		local topTitle = make("TextLabel", {
-			Size = UDim2.fromOffset(48, 32),
-			Position = UDim2.fromOffset(8, 0),
+			Size = UDim2.fromOffset(32, 30),
+			Position = UDim2.fromOffset(6, 0),
 			BackgroundTransparency = 1,
-			Text = "Dex",
+			Text = "D",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamBold,
@@ -755,8 +756,8 @@ return function(Library)
 		})
 
 		local clickItemButton = make("TextButton", {
-			Size = UDim2.fromOffset(64, 23),
-			Position = UDim2.fromOffset(58, 4),
+			Size = UDim2.fromOffset(58, 22),
+			Position = UDim2.fromOffset(42, 4),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Click Item",
@@ -771,8 +772,8 @@ return function(Library)
 		hover(clickItemButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local confirmPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(58, 23),
-			Position = UDim2.fromOffset(128, 4),
+			Size = UDim2.fromOffset(56, 22),
+			Position = UDim2.fromOffset(104, 4),
 			BackgroundColor3 = theme("Success", Color3.fromRGB(50, 88, 62)),
 			BorderSizePixel = 0,
 			Text = "Confirm",
@@ -787,8 +788,8 @@ return function(Library)
 		corner(confirmPickButton, 8)
 
 		local cancelPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(50, 23),
-			Position = UDim2.fromOffset(190, 4),
+			Size = UDim2.fromOffset(44, 22),
+			Position = UDim2.fromOffset(164, 4),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Cancel",
@@ -827,8 +828,8 @@ return function(Library)
 				cancelPickButton.Visible = true
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(252, 34),
-					Position = UDim2.new(0.5, -126, 0, 10)
+					Size = UDim2.fromOffset(216, 32),
+					Position = UDim2.new(0.5, -108, 0, 10)
 				}):Play()
 			else
 				clickItemButton.Text = "Click Item"
@@ -840,8 +841,8 @@ return function(Library)
 				pickHighlight.Enabled = false
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(248, 32),
-					Position = UDim2.new(0.5, -124, 0, 10)
+					Size = UDim2.fromOffset(214, 30),
+					Position = UDim2.new(0.5, -107, 0, 10)
 				}):Play()
 			end
 		end
