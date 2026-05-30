@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v5
+-- Traceless Dex Side Panel Extension v6
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -709,8 +709,8 @@ return function(Library)
 		hover(miniTab, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local topTools = make("Frame", {
-			Size = UDim2.fromOffset(342, 42),
-			Position = UDim2.new(0.5, -171, 0, 14),
+			Size = UDim2.fromOffset(268, 34),
+			Position = UDim2.new(0.5, -134, 0, 10),
 			BackgroundColor3 = theme("Panel", Color3.fromRGB(17, 17, 20)),
 			BorderSizePixel = 0,
 			Visible = false,
@@ -721,10 +721,10 @@ return function(Library)
 		stroke(topTools, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.16)
 
 		local topTitle = make("TextLabel", {
-			Size = UDim2.fromOffset(78, 42),
-			Position = UDim2.fromOffset(10, 0),
+			Size = UDim2.fromOffset(58, 34),
+			Position = UDim2.fromOffset(8, 0),
 			BackgroundTransparency = 1,
-			Text = "Dex Tools",
+			Text = "Dex",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamBold,
@@ -733,8 +733,8 @@ return function(Library)
 		})
 
 		local clickItemButton = make("TextButton", {
-			Size = UDim2.fromOffset(86, 30),
-			Position = UDim2.fromOffset(94, 6),
+			Size = UDim2.fromOffset(70, 24),
+			Position = UDim2.fromOffset(70, 5),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Click Item",
@@ -749,8 +749,8 @@ return function(Library)
 		hover(clickItemButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local confirmPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(76, 30),
-			Position = UDim2.fromOffset(186, 6),
+			Size = UDim2.fromOffset(62, 24),
+			Position = UDim2.fromOffset(146, 5),
 			BackgroundColor3 = theme("Success", Color3.fromRGB(50, 88, 62)),
 			BorderSizePixel = 0,
 			Text = "Confirm",
@@ -765,8 +765,8 @@ return function(Library)
 		corner(confirmPickButton, 8)
 
 		local cancelPickButton = make("TextButton", {
-			Size = UDim2.fromOffset(66, 30),
-			Position = UDim2.fromOffset(268, 6),
+			Size = UDim2.fromOffset(52, 24),
+			Position = UDim2.fromOffset(214, 5),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "Cancel",
@@ -805,8 +805,8 @@ return function(Library)
 				cancelPickButton.Visible = true
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(384, 46),
-					Position = UDim2.new(0.5, -192, 0, 14)
+					Size = UDim2.fromOffset(286, 36),
+					Position = UDim2.new(0.5, -143, 0, 10)
 				}):Play()
 			else
 				clickItemButton.Text = "Click Item"
@@ -818,8 +818,8 @@ return function(Library)
 				pickHighlight.Enabled = false
 
 				game:GetService("TweenService"):Create(topTools, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					Size = UDim2.fromOffset(342, 42),
-					Position = UDim2.new(0.5, -171, 0, 14)
+					Size = UDim2.fromOffset(268, 34),
+					Position = UDim2.new(0.5, -134, 0, 10)
 				}):Play()
 			end
 		end
@@ -1219,6 +1219,8 @@ return function(Library)
 				Parent = row
 			})
 
+			panel.Rows[instance] = row
+
 			local touchHolding = false
 			local touchHoldStarted = 0
 			local suppressNextClick = false
@@ -1281,6 +1283,7 @@ return function(Library)
 
 		function panel:RenderTree()
 			clearChildren(tree)
+			panel.Rows = {}
 
 			local query = trim(searchBox.Text)
 
@@ -1346,23 +1349,47 @@ return function(Library)
 				return
 			end
 
-			searchBox.Text = ""
-			panel.Expanded[instance] = true
+			panel:FocusObject(instance)
+		end
 
-			local parentObject = instance.Parent
-			while parentObject and parentObject ~= game do
-				panel.Expanded[parentObject] = true
-				parentObject = parentObject.Parent
+		function panel:ScrollToObject(instance)
+			task.defer(function()
+				local row = panel.Rows and panel.Rows[instance]
+
+				if not row then
+					return
+				end
+
+				local rowY = row.AbsolutePosition.Y - tree.AbsolutePosition.Y + tree.CanvasPosition.Y
+				local targetY = math.max(0, rowY - 52)
+
+				tree.CanvasPosition = Vector2.new(0, targetY)
+			end)
+		end
+
+		function panel:FocusObject(instance)
+			if not instance then
+				return
 			end
 
-			panel:RenderTree()
+			searchBox.Text = ""
+
+			local current = instance
+
+			while current and current ~= game do
+				panel.Expanded[current] = true
+				current = current.Parent
+			end
+
 			panel.Selected = instance
+			panel:RenderTree()
 			renderInspector(instance)
+			panel:ScrollToObject(instance)
 		end
 
 		function panel:MinimizePanel()
 			setClickPickEnabled(false)
-			topTools.Visible = false
+			topTools.Visible = true
 
 			if not panel.Open then
 				main.Visible = false
@@ -1580,10 +1607,15 @@ return function(Library)
 			local target = clickPickTarget
 			setClickPickEnabled(false)
 
-			panel:ShowChildren(target)
-			panel.Selected = target
-			renderInspector(target)
-			notify("Dex", "Selected in Dex panel.", 2)
+			if not panel.Open then
+				panel:OpenPanel()
+			end
+
+			task.defer(function()
+				panel:FocusObject(target)
+			end)
+
+			notify("Dex", "Selected and focused in Dex panel.", 2)
 		end)
 
 		if Mouse then
