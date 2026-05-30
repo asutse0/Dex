@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v9
+-- Traceless Dex Side Panel Extension v10
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -605,7 +605,8 @@ return function(Library)
 			height = math.floor(math.clamp(viewport.Y - 112, 410, 560))
 		end
 
-		local xOffset = -(width + (mobile and 12 or 14))
+		-- Keep Dex pushed all the way to the right edge.
+		local xOffset = -(width + (mobile and 4 or 6))
 
 		-- Keep the slimmer Dex panel at the right-center like the original position.
 		-- Width stays compact, only the vertical position is restored to center.
@@ -713,7 +714,7 @@ return function(Library)
 
 		local miniTab = make("TextButton", {
 			Size = UDim2.fromOffset(48, 34),
-			Position = UDim2.new(1, -52, 0.5, -17),
+			Position = UDim2.new(1, -48, 0.5, -17),
 			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 			BorderSizePixel = 0,
 			Text = "‹ Dex",
