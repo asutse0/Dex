@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v1.13
+-- Traceless Dex Side Panel Extension v1.14
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -10,7 +10,7 @@
 -- Library:AddDexToggle(tab, { Chat = Chat })
 
 return function(Library)
-	local DEX_VERSION = "Dex v1.13"
+	local DEX_VERSION = "Dex v1.14"
 
 	--// Services
 	local Players = game:GetService("Players")
@@ -641,7 +641,10 @@ return function(Library)
 			OriginalCameraType = nil,
 			LastSelectedRow = nil,
 			LastSelectedNormalColor = nil,
-			RenderingTree = false
+			RenderingTree = false,
+			TreeRendered = false,
+			TreeDirty = true,
+			LastFocusedObject = nil
 		}
 
 		local gui = make("ScreenGui", {
@@ -694,7 +697,7 @@ return function(Library)
 			Size = UDim2.new(1, -130, 1, 0),
 			Position = UDim2.fromOffset(44, 0),
 			BackgroundTransparency = 1,
-			Text = "Traceless Dex  •  v1.13",
+			Text = "Traceless Dex  •  v1.14",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamBold,
@@ -1367,6 +1370,7 @@ return function(Library)
 				-- Only rebuild when expanding/collapsing children.
 				if hasChildren then
 					panel.Expanded[instance] = not panel.Expanded[instance]
+					panel.TreeDirty = true
 					panel:RenderTree()
 				end
 			end)
@@ -1443,6 +1447,8 @@ return function(Library)
 				end
 
 				panel.RenderingTree = false
+				panel.TreeRendered = true
+				panel.TreeDirty = false
 				return
 			end
 
@@ -1451,6 +1457,24 @@ return function(Library)
 			end
 
 			panel.RenderingTree = false
+			panel.TreeRendered = true
+			panel.TreeDirty = false
+		end
+
+		function panel:SelectOnly(instance)
+			if not instance then
+				return
+			end
+
+			local row = panel.Rows and panel.Rows[instance]
+
+			if row then
+				markSelectedRow(instance, row)
+			else
+				panel.Selected = instance
+			end
+
+			renderInspector(instance)
 		end
 
 		function panel:ShowChildren(instance)
@@ -1482,7 +1506,21 @@ return function(Library)
 			end
 
 			searchBox.Text = ""
+			panel.LastFocusedObject = instance
 
+			-- Fast path: if the object already has a row, do not rebuild the tree.
+			-- This avoids the CPU spike when confirming or reselecting visible objects.
+			local existingRow = panel.Rows and panel.Rows[instance]
+
+			if existingRow then
+				markSelectedRow(instance, existingRow)
+				renderInspector(instance)
+				panel:ScrollToObject(instance)
+				return
+			end
+
+			-- Slow path only when the object is not currently visible in the tree.
+			-- Expand ancestors so the target row can exist after one rebuild.
 			local current = instance
 
 			while current and current ~= game do
@@ -1492,7 +1530,6 @@ return function(Library)
 
 			panel.Selected = instance
 
-			-- Yield once before rebuilding so selecting a world item does not spike the frame as hard.
 			task.defer(function()
 				panel:RenderTree()
 				renderInspector(instance)
@@ -1549,7 +1586,15 @@ return function(Library)
 			})
 
 			tween:Play()
-			panel:RenderTree()
+
+			-- Performance fix:
+			-- Reopening after minimize should not rebuild the entire Dex tree.
+			-- Only render on first open or when something intentionally dirtied the tree.
+			if not panel.TreeRendered or panel.TreeDirty then
+				task.defer(function()
+					panel:RenderTree()
+				end)
+			end
 		end
 
 		function panel:ClosePanel()
@@ -1603,12 +1648,14 @@ return function(Library)
 		end
 
 		makeTopButton("Search", 0, 0.25, function()
+			panel.TreeDirty = true
 			panel:RenderTree()
 		end)
 
 		makeTopButton("Roots", 0.25, 0.25, function()
 			searchBox.Text = ""
 			panel.Expanded = {}
+			panel.TreeDirty = true
 			panel:RenderTree()
 		end)
 
@@ -1686,6 +1733,7 @@ return function(Library)
 
 		searchBox.FocusLost:Connect(function(enterPressed)
 			if enterPressed then
+				panel.TreeDirty = true
 				panel:RenderTree()
 			end
 		end)
