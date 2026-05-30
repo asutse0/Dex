@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v12
+-- Traceless Dex Side Panel Extension v13
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -551,7 +551,7 @@ return function(Library)
 			if source then
 				table.insert(lines, "Source length: " .. tostring(#source) .. " characters")
 				table.insert(lines, "Source preview:")
-				table.insert(lines, string.sub(source, 1, 1000))
+				table.insert(lines, string.sub(source, 1, 500))
 			else
 				table.insert(lines, "Source note: " .. tostring(sourceError))
 			end
@@ -636,7 +636,10 @@ return function(Library)
 			Chat = chat,
 			ViewTarget = nil,
 			OriginalCameraSubject = nil,
-			OriginalCameraType = nil
+			OriginalCameraType = nil,
+			LastSelectedRow = nil,
+			LastSelectedNormalColor = nil,
+			RenderingTree = false
 		}
 
 		local gui = make("ScreenGui", {
@@ -1228,6 +1231,27 @@ return function(Library)
 			menu.Visible = true
 		end
 
+		local function getNormalRowColor(instance)
+			return panel.Selected == instance and theme("Accent", Color3.fromRGB(90, 90, 100)) or theme("Panel2", Color3.fromRGB(24, 24, 28))
+		end
+
+		local function markSelectedRow(instance, row)
+			local normalColor = theme("Panel2", Color3.fromRGB(24, 24, 28))
+			local selectedColor = theme("Accent", Color3.fromRGB(90, 90, 100))
+
+			if panel.LastSelectedRow and panel.LastSelectedRow.Parent then
+				panel.LastSelectedRow.BackgroundColor3 = panel.LastSelectedNormalColor or normalColor
+			end
+
+			panel.Selected = instance
+			panel.LastSelectedRow = row
+			panel.LastSelectedNormalColor = normalColor
+
+			if row and row.Parent then
+				row.BackgroundColor3 = selectedColor
+			end
+		end
+
 		local function addRow(instance, depth)
 			if not instance then
 				return
@@ -1244,7 +1268,7 @@ return function(Library)
 
 			local row = make("TextButton", {
 				Size = UDim2.new(1, 0, 0, 28),
-				BackgroundColor3 = panel.Selected == instance and theme("Accent", Color3.fromRGB(90, 90, 100)) or theme("Panel2", Color3.fromRGB(24, 24, 28)),
+				BackgroundColor3 = getNormalRowColor(instance),
 				BorderSizePixel = 0,
 				Text = "",
 				AutoButtonColor = false,
@@ -1288,6 +1312,11 @@ return function(Library)
 
 			panel.Rows[instance] = row
 
+			if panel.Selected == instance then
+				panel.LastSelectedRow = row
+				panel.LastSelectedNormalColor = theme("Panel2", Color3.fromRGB(24, 24, 28))
+			end
+
 			local touchHolding = false
 			local touchHoldStarted = 0
 			local suppressNextClick = false
@@ -1328,13 +1357,14 @@ return function(Library)
 				end
 
 				menu.Visible = false
-				panel.Selected = instance
+				markSelectedRow(instance, row)
 				renderInspector(instance)
 
+				-- Performance fix:
+				-- Do not rebuild the whole Dex tree for simple selection.
+				-- Only rebuild when expanding/collapsing children.
 				if hasChildren then
 					panel.Expanded[instance] = not panel.Expanded[instance]
-					panel:RenderTree()
-				else
 					panel:RenderTree()
 				end
 			end)
@@ -1349,8 +1379,15 @@ return function(Library)
 		end
 
 		function panel:RenderTree()
+			if panel.RenderingTree then
+				return
+			end
+
+			panel.RenderingTree = true
 			clearChildren(tree)
 			panel.Rows = {}
+			panel.LastSelectedRow = nil
+			panel.LastSelectedNormalColor = nil
 
 			local query = trim(searchBox.Text)
 
@@ -1403,12 +1440,15 @@ return function(Library)
 					})
 				end
 
+				panel.RenderingTree = false
 				return
 			end
 
 			for _, root in ipairs(getRoots()) do
 				addRow(root, 0)
 			end
+
+			panel.RenderingTree = false
 		end
 
 		function panel:ShowChildren(instance)
@@ -1449,9 +1489,13 @@ return function(Library)
 			end
 
 			panel.Selected = instance
-			panel:RenderTree()
-			renderInspector(instance)
-			panel:ScrollToObject(instance)
+
+			-- Yield once before rebuilding so selecting a world item does not spike the frame as hard.
+			task.defer(function()
+				panel:RenderTree()
+				renderInspector(instance)
+				panel:ScrollToObject(instance)
+			end)
 		end
 
 		function panel:MinimizePanel()
@@ -1685,9 +1729,7 @@ return function(Library)
 				panel:OpenPanel()
 			end
 
-			task.defer(function()
-				panel:FocusObject(target)
-			end)
+			panel:FocusObject(target)
 
 			setTopToolsExpanded(false)
 			notify("Dex", "Selected and focused in Dex panel.", 2)
