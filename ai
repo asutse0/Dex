@@ -1856,7 +1856,7 @@ return function(Library)
 			panel:Toggle()
 		end)
 
-		local info = tab:AddLabel("Dex opens on the right. Tap an object to inspect. Hold/right-click a row for Copy Path / Paste to AI.")
+		local info = tab:AddLabel("Dex opens on the right. Tap an object to inspect.")
 
 		return panel
 	end
