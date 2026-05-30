@@ -206,6 +206,203 @@ return function(Library)
 		return children
 	end
 
+	local function getClassVisual(instance)
+		if not instance then
+			return "[?]", Color3.fromRGB(120, 120, 130)
+		end
+
+		if instance:IsA("Folder") then
+			return "[F]", Color3.fromRGB(235, 195, 75)
+		end
+
+		if instance:IsA("Model") then
+			return "[M]", Color3.fromRGB(95, 165, 255)
+		end
+
+		if instance:IsA("BasePart") then
+			return "[P]", Color3.fromRGB(100, 220, 145)
+		end
+
+		if instance:IsA("LocalScript") then
+			return "[LS]", Color3.fromRGB(255, 155, 95)
+		end
+
+		if instance:IsA("ModuleScript") then
+			return "[MS]", Color3.fromRGB(190, 135, 255)
+		end
+
+		if instance:IsA("Script") then
+			return "[S]", Color3.fromRGB(255, 120, 120)
+		end
+
+		if instance:IsA("RemoteEvent") then
+			return "[RE]", Color3.fromRGB(255, 105, 185)
+		end
+
+		if instance:IsA("RemoteFunction") then
+			return "[RF]", Color3.fromRGB(255, 95, 135)
+		end
+
+		if instance:IsA("Humanoid") then
+			return "[H]", Color3.fromRGB(90, 220, 220)
+		end
+
+		if instance:IsA("Tool") then
+			return "[T]", Color3.fromRGB(220, 180, 80)
+		end
+
+		if instance:IsA("ScreenGui") or instance:IsA("GuiObject") then
+			return "[UI]", Color3.fromRGB(120, 170, 255)
+		end
+
+		if instance:IsA("Camera") then
+			return "[CAM]", Color3.fromRGB(180, 180, 255)
+		end
+
+		if instance:IsA("Sound") then
+			return "[AUD]", Color3.fromRGB(120, 220, 120)
+		end
+
+		return "[O]", Color3.fromRGB(150, 150, 160)
+	end
+
+	local function findUsablePart(instance)
+		if not instance then
+			return nil
+		end
+
+		if instance:IsA("BasePart") then
+			return instance
+		end
+
+		if instance:IsA("Model") then
+			local primary = instance.PrimaryPart
+
+			if primary and primary:IsA("BasePart") then
+				return primary
+			end
+
+			local ok, pivot = pcall(function()
+				return instance:GetPivot()
+			end)
+
+			if ok and pivot then
+				for _, child in ipairs(instance:GetDescendants()) do
+					if child:IsA("BasePart") then
+						return child
+					end
+				end
+			end
+		end
+
+		for _, child in ipairs(instance:GetDescendants()) do
+			if child:IsA("BasePart") then
+				return child
+			end
+		end
+
+		local current = instance.Parent
+
+		while current and current ~= game do
+			if current:IsA("BasePart") then
+				return current
+			end
+
+			if current:IsA("Model") then
+				local primary = current.PrimaryPart
+
+				if primary and primary:IsA("BasePart") then
+					return primary
+				end
+
+				for _, child in ipairs(current:GetDescendants()) do
+					if child:IsA("BasePart") then
+						return child
+					end
+				end
+			end
+
+			current = current.Parent
+		end
+
+		return nil
+	end
+
+	local function getObjectCFrame(instance)
+		if not instance then
+			return nil
+		end
+
+		if instance:IsA("BasePart") then
+			return instance.CFrame
+		end
+
+		if instance:IsA("Model") then
+			local ok, pivot = pcall(function()
+				return instance:GetPivot()
+			end)
+
+			if ok then
+				return pivot
+			end
+		end
+
+		local part = findUsablePart(instance)
+
+		if part then
+			return part.CFrame
+		end
+
+		return nil
+	end
+
+	local function getCameraSubject(instance)
+		if not instance then
+			return nil
+		end
+
+		if instance:IsA("Humanoid") then
+			return instance
+		end
+
+		if instance:IsA("BasePart") then
+			return instance
+		end
+
+		if instance:IsA("Model") then
+			local humanoid = instance:FindFirstChildOfClass("Humanoid")
+
+			if humanoid then
+				return humanoid
+			end
+		end
+
+		return findUsablePart(instance)
+	end
+
+	local function teleportLocalPlayerTo(instance)
+		local character = LocalPlayer and LocalPlayer.Character
+
+		if not character then
+			return false, "No character."
+		end
+
+		local root = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChildWhichIsA("BasePart")
+
+		if not root then
+			return false, "No HumanoidRootPart."
+		end
+
+		local targetCFrame = getObjectCFrame(instance)
+
+		if not targetCFrame then
+			return false, "No world position found for this object."
+		end
+
+		root.CFrame = targetCFrame + Vector3.new(0, 5, 0)
+		return true, "Teleported."
+	end
+
 	local function getScriptSource(instance)
 		if not instance or not (instance:IsA("LuaSourceContainer")) then
 			return nil, "Not a LuaSourceContainer."
@@ -338,7 +535,10 @@ return function(Library)
 			Selected = nil,
 			Rows = {},
 			Expanded = {},
-			Chat = chat
+			Chat = chat,
+			ViewTarget = nil,
+			OriginalCameraSubject = nil,
+			OriginalCameraType = nil
 		}
 
 		local gui = make("ScreenGui", {
@@ -590,6 +790,55 @@ return function(Library)
 			return false
 		end
 
+		local function unviewCurrent()
+			local camera = Workspace.CurrentCamera
+
+			if not camera then
+				return false, "No camera."
+			end
+
+			local character = LocalPlayer and LocalPlayer.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+			camera.CameraType = panel.OriginalCameraType or Enum.CameraType.Custom
+			camera.CameraSubject = panel.OriginalCameraSubject or humanoid
+
+			panel.ViewTarget = nil
+			panel.OriginalCameraSubject = nil
+			panel.OriginalCameraType = nil
+
+			return true, "Camera restored."
+		end
+
+		local function viewObject(instance)
+			local camera = Workspace.CurrentCamera
+
+			if not camera then
+				return false, "No camera."
+			end
+
+			if panel.ViewTarget == instance then
+				return unviewCurrent()
+			end
+
+			local subject = getCameraSubject(instance)
+
+			if not subject then
+				return false, "No viewable part/humanoid found."
+			end
+
+			if not panel.ViewTarget then
+				panel.OriginalCameraSubject = camera.CameraSubject
+				panel.OriginalCameraType = camera.CameraType
+			end
+
+			panel.ViewTarget = instance
+			camera.CameraType = Enum.CameraType.Custom
+			camera.CameraSubject = subject
+
+			return true, "Viewing object."
+		end
+
 		local function showContextMenu(instance, absPosition)
 			panel.Selected = instance
 			renderInspector(instance)
@@ -639,6 +888,26 @@ return function(Library)
 				pasteToChat("\n\n[Dex Object Context]\n" .. getObjectContext(instance) .. "\n")
 			end)
 
+			menuButton("Teleport To", function()
+				local ok, result = teleportLocalPlayerTo(instance)
+
+				if ok then
+					notify("Dex", result, 2)
+				else
+					notify("Dex", result or "Could not teleport.", 3)
+				end
+			end)
+
+			menuButton(panel.ViewTarget == instance and "Unview" or "View", function()
+				local ok, result = viewObject(instance)
+
+				if ok then
+					notify("Dex", result, 2)
+				else
+					notify("Dex", result or "Could not view object.", 3)
+				end
+			end)
+
 			menuButton("Show Children", function()
 				panel:ShowChildren(instance)
 			end)
@@ -674,7 +943,8 @@ return function(Library)
 			local hasChildren = #children > 0
 			local expanded = panel.Expanded[instance] == true
 			local prefix = hasChildren and (expanded and "▼ " or "▶ ") or "• "
-			local text = string.rep("  ", depth) .. prefix .. instance.Name .. "  [" .. instance.ClassName .. "]"
+			local icon, classColor = getClassVisual(instance)
+			local text = string.rep("  ", depth) .. prefix .. icon .. " " .. instance.Name .. "  [" .. instance.ClassName .. "]"
 
 			local row = make("TextButton", {
 				Size = UDim2.new(1, 0, 0, 28),
@@ -688,6 +958,15 @@ return function(Library)
 				TextSize = 10,
 				AutoButtonColor = false,
 				Parent = tree
+			})
+
+			make("Frame", {
+				Size = UDim2.new(0, 4, 1, -8),
+				Position = UDim2.fromOffset(3, 4),
+				BackgroundColor3 = classColor,
+				BorderSizePixel = 0,
+				ZIndex = row.ZIndex + 1,
+				Parent = row
 			})
 
 			corner(row, 7)
