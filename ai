@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v7
+-- Traceless Dex Side Panel Extension v9
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -607,10 +607,9 @@ return function(Library)
 
 		local xOffset = -(width + (mobile and 12 or 14))
 
-		-- Put the panel lower instead of vertically centered.
-		-- This keeps the top Dex Tools bar from covering the minimize arrow/header.
-		local topMargin = mobile and 54 or 56
-		local yOffset = topMargin - math.floor(viewport.Y / 2)
+		-- Keep the slimmer Dex panel at the right-center like the original position.
+		-- Width stays compact, only the vertical position is restored to center.
+		local yOffset = -math.floor(height / 2)
 
 		return mobile, width, height, xOffset, yOffset
 	end
