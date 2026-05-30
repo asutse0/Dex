@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension v3
+-- Traceless Dex Side Panel Extension v4
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -211,6 +211,45 @@ return function(Library)
 			return "[?]", Color3.fromRGB(120, 120, 130)
 		end
 
+		local serviceName = getServiceName(instance)
+
+		-- Services are checked first so Workspace/Players/ReplicatedStorage do not show as generic objects.
+		if serviceName == "Workspace" then
+			return "[WS]", Color3.fromRGB(95, 180, 255)
+		end
+
+		if serviceName == "Players" then
+			return "[PLR]", Color3.fromRGB(120, 220, 220)
+		end
+
+		if serviceName == "ReplicatedStorage" then
+			return "[RS]", Color3.fromRGB(170, 140, 255)
+		end
+
+		if serviceName == "Lighting" then
+			return "[LGT]", Color3.fromRGB(255, 220, 105)
+		end
+
+		if serviceName == "StarterGui" then
+			return "[SG]", Color3.fromRGB(120, 170, 255)
+		end
+
+		if serviceName == "StarterPack" then
+			return "[SP]", Color3.fromRGB(220, 180, 80)
+		end
+
+		if serviceName == "StarterPlayer" then
+			return "[SPY]", Color3.fromRGB(120, 220, 180)
+		end
+
+		if serviceName == "SoundService" then
+			return "[SND]", Color3.fromRGB(120, 220, 120)
+		end
+
+		if serviceName == "Teams" then
+			return "[TM]", Color3.fromRGB(255, 170, 110)
+		end
+
 		if instance:IsA("Folder") then
 			return "[F]", Color3.fromRGB(235, 195, 75)
 		end
@@ -243,15 +282,39 @@ return function(Library)
 			return "[RF]", Color3.fromRGB(255, 95, 135)
 		end
 
+		if instance:IsA("BindableEvent") then
+			return "[BE]", Color3.fromRGB(255, 130, 200)
+		end
+
+		if instance:IsA("BindableFunction") then
+			return "[BF]", Color3.fromRGB(255, 120, 160)
+		end
+
 		if instance:IsA("Humanoid") then
 			return "[H]", Color3.fromRGB(90, 220, 220)
+		end
+
+		if instance:IsA("Animator") then
+			return "[ATR]", Color3.fromRGB(120, 210, 255)
+		end
+
+		if instance:IsA("Animation") then
+			return "[AN]", Color3.fromRGB(255, 180, 90)
+		end
+
+		if instance:IsA("AnimationController") then
+			return "[AC]", Color3.fromRGB(255, 190, 105)
 		end
 
 		if instance:IsA("Tool") then
 			return "[T]", Color3.fromRGB(220, 180, 80)
 		end
 
-		if instance:IsA("ScreenGui") or instance:IsA("GuiObject") then
+		if instance:IsA("ScreenGui") then
+			return "[GUI]", Color3.fromRGB(120, 170, 255)
+		end
+
+		if instance:IsA("GuiObject") then
 			return "[UI]", Color3.fromRGB(120, 170, 255)
 		end
 
@@ -261,6 +324,18 @@ return function(Library)
 
 		if instance:IsA("Sound") then
 			return "[AUD]", Color3.fromRGB(120, 220, 120)
+		end
+
+		if instance:IsA("ValueBase") then
+			return "[VAL]", Color3.fromRGB(180, 220, 120)
+		end
+
+		if instance:IsA("Constraint") then
+			return "[CON]", Color3.fromRGB(170, 170, 255)
+		end
+
+		if instance:IsA("Attachment") then
+			return "[ATT]", Color3.fromRGB(180, 180, 190)
 		end
 
 		return "[O]", Color3.fromRGB(150, 150, 160)
@@ -571,9 +646,25 @@ return function(Library)
 
 		corner(header, 14)
 
+		local minimizeButton = make("TextButton", {
+			Size = UDim2.fromOffset(28, 28),
+			Position = UDim2.fromOffset(8, 9),
+			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+			BorderSizePixel = 0,
+			Text = "›",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			AutoButtonColor = false,
+			Parent = header
+		})
+
+		corner(minimizeButton, 8)
+		hover(minimizeButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
 		make("TextLabel", {
-			Size = UDim2.new(1, -92, 1, 0),
-			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.new(1, -130, 1, 0),
+			Position = UDim2.fromOffset(44, 0),
 			BackgroundTransparency = 1,
 			Text = "Traceless Dex",
 			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
@@ -598,6 +689,24 @@ return function(Library)
 
 		corner(closeButton, 9)
 		hover(closeButton, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+		local miniTab = make("TextButton", {
+			Size = UDim2.fromOffset(48, 34),
+			Position = UDim2.new(1, -52, 0.5, -17),
+			BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
+			BorderSizePixel = 0,
+			Text = "‹ Dex",
+			TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
+			Font = Enum.Font.GothamBold,
+			TextSize = 10,
+			AutoButtonColor = false,
+			Visible = false,
+			Parent = gui
+		})
+
+		corner(miniTab, 10)
+		stroke(miniTab, theme("Stroke", Color3.fromRGB(65, 65, 72)), 1, 0.22)
+		hover(miniTab, theme("Button", Color3.fromRGB(42, 42, 48)), theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 		local searchBox = make("TextBox", {
 			Size = UDim2.new(1, -22, 0, 34),
@@ -1125,6 +1234,31 @@ return function(Library)
 			renderInspector(instance)
 		end
 
+		function panel:MinimizePanel()
+			if not panel.Open then
+				main.Visible = false
+				miniTab.Visible = true
+				return
+			end
+
+			panel.Open = false
+			menu.Visible = false
+
+			local _, _, _, _, newYOffset = getMobileSize()
+			local tween = game:GetService("TweenService"):Create(main, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+				Position = UDim2.new(1, 18, 0.5, newYOffset)
+			})
+
+			tween:Play()
+
+			task.delay(0.17, function()
+				if not panel.Open then
+					main.Visible = false
+					miniTab.Visible = true
+				end
+			end)
+		end
+
 		function panel:OpenPanel()
 			if panel.Open then
 				return
@@ -1132,6 +1266,7 @@ return function(Library)
 
 			panel.Open = true
 			main.Visible = true
+			miniTab.Visible = false
 			local _, width, height, newXOffset, newYOffset = getMobileSize()
 			main.Size = UDim2.fromOffset(width, height)
 			main.Position = UDim2.new(1, 18, 0.5, newYOffset)
@@ -1146,6 +1281,8 @@ return function(Library)
 		end
 
 		function panel:ClosePanel()
+			miniTab.Visible = false
+
 			if not panel.Open then
 				main.Visible = false
 				return
@@ -1278,6 +1415,14 @@ return function(Library)
 			end
 		end)
 
+		minimizeButton.MouseButton1Click:Connect(function()
+			panel:MinimizePanel()
+		end)
+
+		miniTab.MouseButton1Click:Connect(function()
+			panel:OpenPanel()
+		end)
+
 		closeButton.MouseButton1Click:Connect(function()
 			panel:ClosePanel()
 		end)
@@ -1308,6 +1453,7 @@ return function(Library)
 		renderInspector(nil)
 		panel.Gui = gui
 		panel.Main = main
+		panel.MiniTab = miniTab
 		panel.Tree = tree
 		panel.Inspector = inspector
 		panel.Menu = menu
