@@ -1,4 +1,4 @@
--- Traceless Dex Side Panel Extension
+-- Traceless Dex Side Panel Extension v3
 -- Separate GitHub/loadstring module so the main Traceless UI stays smaller.
 --
 -- Use:
@@ -703,7 +703,7 @@ return function(Library)
 		})
 
 		local menu = make("Frame", {
-			Size = UDim2.fromOffset(170, 164),
+			Size = UDim2.fromOffset(202, 252),
 			Position = UDim2.fromOffset(20, 160),
 			BackgroundColor3 = theme("Panel2", Color3.fromRGB(24, 24, 28)),
 			BorderSizePixel = 0,
@@ -847,7 +847,7 @@ return function(Library)
 
 			local function menuButton(text, callback)
 				local b = make("TextButton", {
-					Size = UDim2.new(1, 0, 0, 27),
+					Size = UDim2.new(1, 0, 0, 25),
 					BackgroundColor3 = theme("Button", Color3.fromRGB(42, 42, 48)),
 					BorderSizePixel = 0,
 					Text = text,
@@ -926,8 +926,11 @@ return function(Library)
 
 			menuButton("Close Menu", function() end)
 
-			local localX = math.clamp(absPosition.X - main.AbsolutePosition.X, 8, main.AbsoluteSize.X - 178)
-			local localY = math.clamp(absPosition.Y - main.AbsolutePosition.Y, 52, main.AbsoluteSize.Y - 172)
+			local menuWidth = menu.AbsoluteSize.X > 0 and menu.AbsoluteSize.X or 202
+			local menuHeight = menu.AbsoluteSize.Y > 0 and menu.AbsoluteSize.Y or 252
+
+			local localX = math.clamp(absPosition.X - main.AbsolutePosition.X, 8, math.max(8, main.AbsoluteSize.X - menuWidth - 8))
+			local localY = math.clamp(absPosition.Y - main.AbsolutePosition.Y, 52, math.max(52, main.AbsoluteSize.Y - menuHeight - 8))
 
 			menu.Position = UDim2.fromOffset(localX, localY)
 			menu.Visible = true
@@ -942,36 +945,54 @@ return function(Library)
 			local children = instance:GetChildren()
 			local hasChildren = #children > 0
 			local expanded = panel.Expanded[instance] == true
-			local prefix = hasChildren and (expanded and "▼ " or "▶ ") or "• "
+			local prefix = hasChildren and (expanded and "▼" or "▶") or "•"
 			local icon, classColor = getClassVisual(instance)
-			local text = string.rep("  ", depth) .. prefix .. icon .. " " .. instance.Name .. "  [" .. instance.ClassName .. "]"
+			local indentOffset = math.clamp(depth * 14, 0, 96)
+			local rowText = prefix .. " " .. instance.Name .. "  [" .. instance.ClassName .. "]"
 
 			local row = make("TextButton", {
 				Size = UDim2.new(1, 0, 0, 28),
 				BackgroundColor3 = panel.Selected == instance and theme("Accent", Color3.fromRGB(90, 90, 100)) or theme("Panel2", Color3.fromRGB(24, 24, 28)),
 				BorderSizePixel = 0,
-				Text = text,
+				Text = "",
+				AutoButtonColor = false,
+				ClipsDescendants = true,
+				Parent = tree
+			})
+
+			corner(row, 7)
+			hover(row, row.BackgroundColor3, theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
+
+			local typeBadge = make("TextLabel", {
+				Size = UDim2.fromOffset(31, 18),
+				Position = UDim2.fromOffset(8 + indentOffset, 5),
+				BackgroundColor3 = classColor,
+				BorderSizePixel = 0,
+				Text = icon:gsub("%[", ""):gsub("%]", ""),
+				TextColor3 = Color3.fromRGB(12, 12, 14),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextYAlignment = Enum.TextYAlignment.Center,
+				Font = Enum.Font.GothamBold,
+				TextSize = 8,
+				ZIndex = row.ZIndex + 1,
+				Parent = row
+			})
+
+			corner(typeBadge, 5)
+
+			make("TextLabel", {
+				Size = UDim2.new(1, -(48 + indentOffset), 1, 0),
+				Position = UDim2.fromOffset(44 + indentOffset, 0),
+				BackgroundTransparency = 1,
+				Text = rowText,
 				TextColor3 = theme("Text", Color3.fromRGB(240, 240, 245)),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextTruncate = Enum.TextTruncate.AtEnd,
 				Font = Enum.Font.GothamBold,
 				TextSize = 10,
-				AutoButtonColor = false,
-				Parent = tree
-			})
-
-			make("Frame", {
-				Size = UDim2.new(0, 4, 1, -8),
-				Position = UDim2.fromOffset(3, 4),
-				BackgroundColor3 = classColor,
-				BorderSizePixel = 0,
 				ZIndex = row.ZIndex + 1,
 				Parent = row
 			})
-
-			corner(row, 7)
-			padding(row, 6, 6, 0, 0)
-			hover(row, row.BackgroundColor3, theme("ButtonHover", Color3.fromRGB(57, 57, 65)))
 
 			local holding = false
 			local holdStarted = 0
